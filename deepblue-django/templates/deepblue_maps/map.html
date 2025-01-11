@@ -1,0 +1,154 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DeepBlue Map</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'deepblue_maps/map.css' %}">
+    <script async src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=marker&loading=async&callback=initMap"></script>
+    <style>
+        
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <div class="layer-title">Layer</div>
+        <div class="form-check layer-option">
+            <input type="checkbox" class="form-check-input" id="local-map" checked>
+            <label class="form-check-label" for="local-map">Local Map</label>
+        </div>
+        <div class="form-check layer-option">
+            <input type="checkbox" class="form-check-input" id="dot-map">
+            <label class="form-check-label" for="dot-map">Dot Map</label>
+        </div>
+        <div class="form-check layer-option">
+            <input type="checkbox" class="form-check-input" id="heat-map">
+            <label class="form-check-label" for="heat-map">Heat Map</label>
+        </div>
+        <div class="form-check layer-option">
+            <input type="checkbox" class="form-check-input" id="seafloor-map">
+            <label class="form-check-label" for="seafloor-map">Seafloor Map</label>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="controls">
+        <div>
+            <input type="text" id="start-position" placeholder="Start Position" value="47.6061°N, 122.3328°W">
+        </div>
+        <div>
+            <input type="text" id="end-position" placeholder="End Position">
+        </div>
+        <div>
+            <button onclick="handleGo()">GO!</button>
+        </div>
+    </div>
+
+    <script>
+        let map;
+        let currentMarker = null;
+        let centerMarker = null;
+        let infoWindow = null;
+        let tooltipTimeout = null;
+        let connectionLine = null;
+
+        function initMap() {
+            const centerLocation = {lat: 48.544758, lng: -123.012832};
+            const centerPinElement = new google.maps.marker.PinElement({
+                background: "#4285F4",
+                glyphColor: "#FFFFFF"
+            });
+
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: centerLocation,
+                zoom: 20,
+                mapTypeId: 'satellite',
+                mapId: 'deepblue_map_id'
+            });
+
+            // Create info window
+            infoWindow = new google.maps.InfoWindow({
+                content: "ROV Location"
+            });
+
+            // Create blue marker at center
+            centerMarker = new google.maps.marker.AdvancedMarkerElement({
+                position: centerLocation,
+                map: map,
+                title: 'Center Location',
+                content: centerPinElement.element
+            });
+
+            // Add hover listeners
+            centerMarker.addListener('mouseover', () => {
+                infoWindow.open(map, centerMarker);
+            });
+
+            centerMarker.addListener('mouseout', () => {
+                infoWindow.close();
+            });
+
+            map.addListener('click', function(event) {
+                placeMarker(event.latLng);
+                drawConnectionLine(event.latLng);
+            });
+        }
+
+        function drawConnectionLine(endLocation) {
+            // Remove existing line if it exists
+            if (connectionLine) {
+                connectionLine.setMap(null);
+            }
+
+            // Create new dotted line
+            connectionLine = new google.maps.Polyline({
+                path: [
+                    centerMarker.position,
+                    endLocation
+                ],
+                geodesic: true,  // Line follows Earth's curvature
+                strokeColor: ' #FF0000 ',  // Red color
+                strokeOpacity: 0,
+                strokeWeight: 2,
+                icons: [{
+                    icon: {
+                        path: 'M 0,-1 0,1',  // Vertical line
+                        strokeOpacity: 1,
+                        scale: 4
+                    },
+                    offset: '0',
+                    repeat: '15px'  // Space between dots
+                }],
+                map: map
+            });
+        }
+
+        function placeMarker(location) {
+            // Remove existing marker if there is one
+            if (currentMarker) {
+                currentMarker.map = null;
+            }
+
+            // Create new advanced marker
+            currentMarker = new google.maps.marker.AdvancedMarkerElement({
+                position: location,
+                map: map,
+                title: 'Selected Location'
+            });
+
+            // Update the start position input with the new coordinates
+            document.getElementById('start-position').value = 
+                location.lat().toFixed(6) + '°N, ' + location.lng().toFixed(6) + '°W';
+        }
+
+        function handleGo() {
+            // This function will be implemented later
+            console.log('GO button clicked');
+        }
+
+        // Initialize the map when the page loads
+        window.onload = initMap;
+    </script>
+</body>
+</html> 
