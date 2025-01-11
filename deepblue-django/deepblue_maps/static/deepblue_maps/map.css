@@ -29,25 +29,32 @@ body {
     padding: 10px;
     border-radius: 5px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    min-width: 300px;
+}
+
+.controls div {
+    text-align: center;
 }
 
 input[type="text"] {
-    width: 150px;
+    width: 100%;
     padding: 5px;
     margin-bottom: 5px;
 }
 
 button {
-    background-color: #4285f4;
+    background-color: #e60e0e;
     color: white;
     border: none;
     padding: 8px 15px;
     border-radius: 3px;
     cursor: pointer;
+    margin: 5px auto;
+    display: block;
 }
 
 button:hover {
-    background-color: #3267bb;
+    background-color: #b00c0c;
 }
 
 .layer-title {
@@ -65,4 +72,9 @@ button:hover {
 .form-check-label {
     font-size: 1.2em;
     padding-left: 0.5em;
+}
+
+input[type="text"][readonly] {
+    background-color: #f8f9fa;
+    cursor: default;
 }

@@ -41,7 +41,10 @@
             <input type="text" id="end-position" placeholder="End Position">
         </div>
         <div>
-            <button onclick="handleGo()">GO!</button>
+            <input type="text" id="distance" placeholder="Distance (meters)" readonly>
+        </div>
+        <div>
+            <button onclick="handleRecord()">Start Recording</button>
         </div>
     </div>
 
@@ -93,6 +96,35 @@
                 placeMarker(event.latLng);
                 drawConnectionLine(event.latLng);
             });
+
+            // Add input event listener for the end position textbox
+            document.getElementById('end-position').addEventListener('change', function() {
+                const coords = parseCoordinates(this.value);
+                if (coords) {
+                    placeMarker(coords);
+                    drawConnectionLine(coords);
+                } else {
+                    alert('Invalid coordinates format. Please use format: XX.XXXX°N, XX.XXXX°W');
+                }
+            });
+        }
+
+        function parseCoordinates(coordString) {
+            // Match format like "48.544930°N, -123.014024°W"
+            const regex = /^(-?\d+\.?\d*)°([NS]),\s*(-?\d+\.?\d*)°([EW])$/;
+            const match = coordString.trim().match(regex);
+            
+            if (match) {
+                let lat = parseFloat(match[1]);
+                let lng = parseFloat(match[3]);
+                
+                // Adjust for S and W hemispheres
+                if (match[2] === 'S') lat = -lat;
+                if (match[4] === 'W') lng = -lng;
+                
+                return new google.maps.LatLng(lat, lng);
+            }
+            return null;
         }
 
         function drawConnectionLine(endLocation) {
@@ -124,27 +156,46 @@
             });
         }
 
+        function calculateDistance(point1, point2) {
+            // Convert latitude and longitude to radians
+            const lat1 = point1.lat * Math.PI / 180;
+            const lat2 = point2.lat * Math.PI / 180;
+            const lon1 = point1.lng * Math.PI / 180;
+            const lon2 = point2.lng * Math.PI / 180;
+            console.log(lat1, lat2, lon1, lon2);
+            // Calculate distance using the provided formula
+            const distance = Math.acos(
+                (Math.sin(lat1) * Math.sin(lat2)) + 
+                (Math.cos(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1))
+            ) * 6371 * 1000; // Multiply by 6371 km and convert to meters
+            console.log(distance);
+            return distance;
+        }
+
         function placeMarker(location) {
-            // Remove existing marker if there is one
             if (currentMarker) {
                 currentMarker.map = null;
             }
 
-            // Create new advanced marker
             currentMarker = new google.maps.marker.AdvancedMarkerElement({
                 position: location,
                 map: map,
                 title: 'Selected Location'
             });
 
-            // Update the start position input with the new coordinates
-            document.getElementById('start-position').value = 
+            document.getElementById('end-position').value = 
                 location.lat().toFixed(6) + '°N, ' + location.lng().toFixed(6) + '°W';
+            console.log(location) 
+            // Update distance using new formula
+            if (centerMarker) {
+                const distance = calculateDistance(centerMarker.position, {lat: location.lat(), lng: location.lng()});
+                document.getElementById('distance').value = `${distance.toFixed(2)} meters`;
+            }
         }
 
-        function handleGo() {
+        function handleRecord() {
             // This function will be implemented later
-            console.log('GO button clicked');
+            console.log('Record button clicked');
         }
 
         // Initialize the map when the page loads
