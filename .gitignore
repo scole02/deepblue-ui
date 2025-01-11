@@ -10,3 +10,5 @@ deepblue-django/deepblue/__pycache__/*
 
 deepblue-django/deepblue/__pycache__/settings.cpython-310.pyc
 deepblue-django/deepblue_maps/__pycache__/admin.cpython-310.pyc
+deepblue-django/deepblue_maps/migrations/*.py
+deepblue-django/deepblue_maps/migrations/__pycache__/*
