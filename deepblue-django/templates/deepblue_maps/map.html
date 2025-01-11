@@ -44,7 +44,7 @@
             <input type="text" id="distance" placeholder="Distance (meters)" readonly>
         </div>
         <div>
-            <button onclick="handleRecord()">Start Recording</button>
+            <button id="recordButton" class="recording-inactive" onclick="handleRecord()">Start Recording</button>
         </div>
     </div>
 
@@ -55,6 +55,7 @@
         let infoWindow = null;
         let tooltipTimeout = null;
         let connectionLine = null;
+        let isRecording = false;
 
         function initMap() {
             const centerLocation = {lat: 48.544758, lng: -123.012832};
@@ -93,18 +94,22 @@
             });
 
             map.addListener('click', function(event) {
-                placeMarker(event.latLng);
-                drawConnectionLine(event.latLng);
+                if (!isRecording) {
+                    placeMarker(event.latLng);
+                    drawConnectionLine(event.latLng);
+                }
             });
 
             // Add input event listener for the end position textbox
             document.getElementById('end-position').addEventListener('change', function() {
-                const coords = parseCoordinates(this.value);
-                if (coords) {
-                    placeMarker(coords);
-                    drawConnectionLine(coords);
-                } else {
-                    alert('Invalid coordinates format. Please use format: XX.XXXX°N, XX.XXXX°W');
+                if (!isRecording) {
+                    const coords = parseCoordinates(this.value);
+                    if (coords) {
+                        placeMarker(coords);
+                        drawConnectionLine(coords);
+                    } else {
+                        alert('Invalid coordinates format. Please use format: XX.XXXX°N, XX.XXXX°W');
+                    }
                 }
             });
         }
@@ -162,13 +167,11 @@
             const lat2 = point2.lat * Math.PI / 180;
             const lon1 = point1.lng * Math.PI / 180;
             const lon2 = point2.lng * Math.PI / 180;
-            console.log(lat1, lat2, lon1, lon2);
             // Calculate distance using the provided formula
             const distance = Math.acos(
                 (Math.sin(lat1) * Math.sin(lat2)) + 
                 (Math.cos(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1))
             ) * 6371 * 1000; // Multiply by 6371 km and convert to meters
-            console.log(distance);
             return distance;
         }
 
@@ -185,7 +188,6 @@
 
             document.getElementById('end-position').value = 
                 location.lat().toFixed(6) + '°N, ' + location.lng().toFixed(6) + '°W';
-            console.log(location) 
             // Update distance using new formula
             if (centerMarker) {
                 const distance = calculateDistance(centerMarker.position, {lat: location.lat(), lng: location.lng()});
@@ -194,8 +196,26 @@
         }
 
         function handleRecord() {
-            // This function will be implemented later
-            console.log('Record button clicked');
+            const button = document.getElementById('recordButton');
+            const endPositionInput = document.getElementById('end-position');
+            
+            isRecording = !isRecording;
+            
+            if (isRecording) {
+                // Start recording state
+                button.textContent = 'Stop';
+                button.classList.remove('recording-inactive');
+                button.classList.add('recording-active');
+                endPositionInput.readOnly = true;
+                endPositionInput.style.backgroundColor = '#f8f9fa';
+            } else {
+                // Stop recording state
+                button.textContent = 'Start Recording';
+                button.classList.remove('recording-active');
+                button.classList.add('recording-inactive');
+                endPositionInput.readOnly = false;
+                endPositionInput.style.backgroundColor = '';
+            }
         }
 
         // Initialize the map when the page loads

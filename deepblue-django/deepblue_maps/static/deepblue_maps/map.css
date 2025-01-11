@@ -43,7 +43,6 @@ input[type="text"] {
 }
 
 button {
-    background-color: #e60e0e;
     color: white;
     border: none;
     padding: 8px 15px;
@@ -53,8 +52,12 @@ button {
     display: block;
 }
 
-button:hover {
-    background-color: #b00c0c;
+button.recording-inactive {
+    background-color: #e60e0e;  /* Red */
+}
+
+button.recording-active {
+    background-color: #4285F4;  /* Google blue */
 }
 
 .layer-title {
