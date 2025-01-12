@@ -11,6 +11,7 @@
     </style>
 </head>
 <body>
+    {% csrf_token %}
     <div id="sidebar">
         <div class="layer-title">Layer</div>
         <div class="form-check layer-option">
@@ -48,6 +49,31 @@
         </div>
     </div>
 
+    <div class="popup-overlay" id="completionPopup">
+        <div class="popup-form">
+            <h3>Transect Recording Complete. Select Model Type and Confidence Threshold for processing.</h3>
+            <div class="form-group">
+                <label for="modelType">Transect Type:</label>
+                <select id="modelType">
+                    <option value="StarSeg">StarSeg</option>
+                    <option value="Yolov8">Yolov8</option>
+                    <option value="GroundingDino">Choice 3</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="confidenceSlider">Confidence Threshold:</label>
+                <input type="range" 
+                       id="confidenceSlider" 
+                       min="0" 
+                       max="100" 
+                       value="50"
+                       oninput="updateSliderValue(this.value)">
+                <div class="slider-value" id="sliderValue">0.50</div>
+            </div>
+            <button onclick="handleFormSubmit()">OK</button>
+        </div>
+    </div>
+
     <script>
         let map;
         let currentMarker = null;
@@ -56,6 +82,9 @@
         let tooltipTimeout = null;
         let connectionLine = null;
         let isRecording = false;
+        let pathPoints = [];
+        let pathPolyline = null;
+        let detectionMarkers = [];  // Add array to store detection markers
 
         function initMap() {
             const centerLocation = {lat: 48.544758, lng: -123.012832};
@@ -95,7 +124,7 @@
 
             map.addListener('click', function(event) {
                 if (!isRecording) {
-                    placeMarker(event.latLng);
+                    placeEndMarker(event.latLng);
                     drawConnectionLine(event.latLng);
                 }
             });
@@ -105,7 +134,7 @@
                 if (!isRecording) {
                     const coords = parseCoordinates(this.value);
                     if (coords) {
-                        placeMarker(coords);
+                        placeEndMarker(coords);
                         drawConnectionLine(coords);
                     } else {
                         alert('Invalid coordinates format. Please use format: XX.XXXX°N, XX.XXXX°W');
@@ -175,7 +204,7 @@
             return distance;
         }
 
-        function placeMarker(location) {
+        function placeEndMarker(location) {
             if (currentMarker) {
                 currentMarker.map = null;
             }
@@ -194,28 +223,155 @@
                 document.getElementById('distance').value = `${distance.toFixed(2)} meters`;
             }
         }
+        
+        async function fetchPathPoints(startPoint, endPoint) {
+            try {
+                const response = await fetch('/api/get-path-points/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    },
+                    body: JSON.stringify({
+                        start: {
+                            lat: startPoint.lat,
+                            lng: startPoint.lng
+                        },
+                        end: {
+                            lat: endPoint.lat,
+                            lng: endPoint.lng
+                        }
+                    })
+                });
 
-        function handleRecord() {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const data = await response.json();
+                return data.points;
+            } catch (error) {
+                console.error('Error:', error);
+                return null;
+            }
+        }
+
+        async function handleRecord() {
             const button = document.getElementById('recordButton');
             const endPositionInput = document.getElementById('end-position');
             
             isRecording = !isRecording;
             
             if (isRecording) {
-                // Start recording state
                 button.textContent = 'Stop';
                 button.classList.remove('recording-inactive');
                 button.classList.add('recording-active');
                 endPositionInput.readOnly = true;
                 endPositionInput.style.backgroundColor = '#f8f9fa';
+                
+                if (centerMarker && currentMarker) {
+                    // add 1000ms delay to fetching path points
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    rawPathPoints = await fetchPathPoints(centerMarker.position, currentMarker.position);
+                    // convert pathPoints to array of objects
+                    pathPoints = rawPathPoints.map(point => ({lat: Number(point.lat), lng: Number(point.lng)}));
+                    pathPoints.unshift({lat: centerMarker.position.lat, lng: centerMarker.position.lng});
+                    //pathPoints.push({lat: currentMarker.position.lat, lng: currentMarker.position.lng});
+                    console.log('Path Points:', pathPoints);
+                    // Remove existing polyline if it exists
+                    if (pathPolyline) {
+                        pathPolyline.setMap(null);
+                    }
+                    // Create new polyline through all points
+                    pathPolyline = new google.maps.Polyline({
+                        path: pathPoints,
+                        geodesic: true,
+                        strokeColor: '#4285F4',  // Google blue
+                        strokeOpacity: 1.0,
+                        strokeWeight: 3,
+                        map: map
+                    });
+
+                    // move center marker to the end of the path
+                    centerMarker.position = pathPoints[pathPoints.length - 1];
+
+                    // Show completion popup
+                    // const completionPopup = new google.maps.InfoWindow({
+                    //     content: `
+                    //         <div style="padding: 10px;">
+                    //             <h3 style="margin: 0 0 10px 0;">rov transect complete</h3>
+                    //             <button onclick="closeCompletionPopup()" style="
+                    //                 padding: 5px 20px;
+                    //                 background-color: #4285F4;
+                    //                 color: white;
+                    //                 border: none;
+                    //                 border-radius: 3px;
+                    //                 cursor: pointer;">
+                    //                 OK
+                    //             </button>
+                    //         </div>
+                    //     `
+                    // });
+                    // completionPopup.open(map, centerMarker);
+
+                    // // Store the popup in a global variable so we can close it later
+                    // window.currentCompletionPopup = completionPopup;
+                }
             } else {
-                // Stop recording state
                 button.textContent = 'Start Recording';
                 button.classList.remove('recording-active');
                 button.classList.add('recording-inactive');
                 endPositionInput.readOnly = false;
                 endPositionInput.style.backgroundColor = '';
+
+                if (pathPoints.length > 0) {
+                    // move center marker to the end of the path
+                    centerMarker.position = pathPoints[pathPoints.length - 1];
+                    
+                    // Show the custom popup form
+                    document.getElementById('completionPopup').style.display = 'flex';
+                }
+
+                // Clear polyline and points
+                if (pathPolyline) {
+                    pathPolyline.setMap(null);
+                    pathPolyline = null;
+                }
+                pathPoints = [];
             }
+        }
+
+        // Add function to close the completion popup
+        function closeCompletionPopup() {
+            if (window.currentCompletionPopup) {
+                window.currentCompletionPopup.close();
+                window.currentCompletionPopup = null;
+            }
+        }
+
+        function updateSliderValue(value) {
+            const decimalValue = (value / 100).toFixed(2);
+            document.getElementById('sliderValue').textContent = decimalValue;
+        }
+
+        function handleFormSubmit() {
+            const type = document.getElementById('modelType').value;
+            const confidence = document.getElementById('confidenceSlider').value / 100;
+            // Close the popup first
+            document.getElementById('completionPopup').style.display = 'none';
+            
+            console.log('Form submitted:', {
+                type: type,
+                confidence: confidence.toFixed(2)
+            });
+
+            // Close the popup
+            document.getElementById('completionPopup').style.display = 'none';
+            
+            // Reset form values
+            document.getElementById('modelType').selectedIndex = 0;
+            document.getElementById('confidenceSlider').value = 50;
+            updateSliderValue(50);
         }
 
         // Initialize the map when the page loads
