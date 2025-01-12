@@ -25,6 +25,7 @@ urlpatterns = [
     path('map/', views.MapView.as_view(), name='deepblue_map'),
     path('api/get-path-points/', views.get_path_points, name='get_path_points'),
     path('api/get-fake-detections/', views.get_fake_detections, name='get_fake_detections'),
+    path('api/detections/<int:detection_id>/', views.get_detection_details, name='get_detection_details'),
 ]
 
 # Add this to serve media files during development

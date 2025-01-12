@@ -1,10 +1,12 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.conf import settings
 from django.views import View
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib.gis.geos import Point
+from deepblue_maps.models import Detection, ModelParams, Detection
 import json
+import random
 from .utils.fake_data import generate_random_path
 
 class MapView(View):
@@ -57,7 +59,6 @@ def get_fake_detections(request):
         # Parse the JSON data from request body
         data = json.loads(request.body)
         path = data.get('path', [])
-        
         if not path:
             return JsonResponse({'error': 'No path provided'}, status=400)
 
@@ -80,8 +81,8 @@ def get_fake_detections(request):
             point = path[point_index]
             
             # Add small random offset to make it look more natural
-            lat_offset = random.uniform(-0.0001, 0.0001)
-            lng_offset = random.uniform(-0.0001, 0.0001)
+            lat_offset = random.uniform(-0.00001, 0.00001)
+            lng_offset = random.uniform(-0.00001, 0.00001)
             
             # Create the detection
             detection = Detection.objects.create(
@@ -106,5 +107,23 @@ def get_fake_detections(request):
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        print(e)
+        return JsonResponse({'error': str(e)}, status=500)
+
+@require_http_methods(["GET"])
+def get_detection_details(request, detection_id):
+    try:
+        detection = get_object_or_404(Detection, id=detection_id)
+        return JsonResponse({
+            'id': detection.id,
+            'location': {
+                'type': 'Point',
+                'coordinates': [detection.location.x, detection.location.y]  # [lng, lat]
+            },
+            'likely_class': detection.likely_class,
+            'confidences': detection.confidences,
+            'img': detection.img.name if detection.img else None
+        })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)

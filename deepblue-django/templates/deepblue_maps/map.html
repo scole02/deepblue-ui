@@ -85,6 +85,7 @@
         let pathPoints = [];
         let pathPolyline = null;
         let detectionMarkers = [];  // Add array to store detection markers
+        let pathInfoWindow = null;  // Add variable for path info window
 
         function initMap() {
             const centerLocation = {lat: 48.544758, lng: -123.012832};
@@ -324,20 +325,37 @@
                 endPositionInput.readOnly = false;
                 endPositionInput.style.backgroundColor = '';
 
-                if (pathPoints.length > 0) {
+                
                     // move center marker to the end of the path
                     centerMarker.position = pathPoints[pathPoints.length - 1];
-                    
+                    // Add info window to the middle of the path
+                    const midPointIndex = Math.floor(pathPoints.length / 2);
+                    const midPoint = pathPoints[midPointIndex];
                     // Show the custom popup form
                     document.getElementById('completionPopup').style.display = 'flex';
-                }
 
-                // Clear polyline and points
-                if (pathPolyline) {
-                    pathPolyline.setMap(null);
-                    pathPolyline = null;
-                }
-                pathPoints = [];
+                pathInfoWindow = new google.maps.InfoWindow({
+                        content: `
+                            <div style="padding: 5px;">
+                                <button onclick="clearPath()" style="
+                                    background-color: #FF4444;
+                                    color: white;
+                                    border: none;
+                                    padding: 5px 10px;
+                                    border-radius: 3px;
+                                    cursor: pointer;">
+                                    Clear Path
+                                </button>
+                            </div>
+                        `,
+                        position: midPoint
+                });
+                
+                pathInfoWindow.open(map);
+                
+                // Show the custom popup form
+                document.getElementById('completionPopup').style.display = 'flex';
+
             }
         }
 
@@ -359,19 +377,83 @@
             const confidence = document.getElementById('confidenceSlider').value / 100;
             // Close the popup first
             document.getElementById('completionPopup').style.display = 'none';
+            // Clear any existing detection markers
+            clearDetectionMarkers();
             
             console.log('Form submitted:', {
                 type: type,
                 confidence: confidence.toFixed(2)
             });
+            fetch('/api/get-fake-detections/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                },
+                body: JSON.stringify({
+                    path: pathPoints
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Generated detections:', data);
+                // Fetch each detection's details and create markers
+                data.detection_ids.forEach(id => {
+                    // You'll need to create an endpoint to fetch detection details
+                    fetch(`/api/detections/${id}/`)
+                        .then(response => response.json())
+                        .then(detection => {
+                            const markerElement = document.createElement('div');
+                            markerElement.innerHTML = `
+                                <div style="
+                                    width: 15px;
+                                    height: 15px;
+                                    background-color: #FF4444;
+                                    border-radius: 50%;
+                                    border: 2px solid white;
+                                    cursor: pointer;
+                                "></div>
+                            `;
 
-            // Close the popup
-            document.getElementById('completionPopup').style.display = 'none';
-            
-            // Reset form values
-            document.getElementById('modelType').selectedIndex = 0;
-            document.getElementById('confidenceSlider').value = 50;
-            updateSliderValue(50);
+                            const marker = new google.maps.marker.AdvancedMarkerElement({
+                                position: { 
+                                    lat: detection.location.coordinates[1], 
+                                    lng: detection.location.coordinates[0]
+                                },
+                                map: map,
+                                content: markerElement,
+                                title: `Starfish Detection (${detection.confidences.starfish})`
+                            });
+
+                            // Add click listener to show detection details
+                            marker.addListener('click', () => {
+                                const infoWindow = new google.maps.InfoWindow({
+                                    content: `
+                                        <div style="padding: 10px;">
+                                            <h4>Starfish Detection</h4>
+                                            <p>Confidence: ${detection.confidences.starfish}</p>
+                                            <img src="/media/${detection.img}" 
+                                                 style="width: 200px; height: auto;"
+                                                 alt="Detection Image">
+                                        </div>
+                                    `
+                                });
+                                infoWindow.open(map, marker);
+                            });
+
+                            detectionMarkers.push(marker);
+                        });
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+        function clearDetectionMarkers() {
+            detectionMarkers.forEach(marker => {
+                marker.map = null;
+            });
+            detectionMarkers = [];
         }
 
         // Initialize the map when the page loads
