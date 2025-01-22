@@ -139,3 +139,42 @@ def update_detection_review(request, detection_id):
         return JsonResponse({'status': 'success'})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+@require_http_methods(["GET"])
+def get_all_detections(request):
+    try:
+        detections = Detection.objects.all()
+        detections_data = [{
+            'id': d.id,
+            'location': {
+                'lat': d.location.y,
+                'lng': d.location.x
+            },
+            'likelyClass': d.likelyClass,
+            'confidences': d.confidences,
+            'img': d.img.url if d.img else None,
+            'isFalsePositive': d.isFalsePositive
+        } for d in detections]
+        
+        return JsonResponse({'detections': detections_data})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@require_http_methods(["GET"])
+def get_all_positive_detections(request):
+    try:
+        detections = Detection.objects.filter(isFalsePositive=False)
+        detections_data = [{
+            'id': d.id,
+            'location': {
+                'lat': d.location.y,
+                'lng': d.location.x
+            },
+            'likelyClass': d.likelyClass,
+            'confidences': d.confidences,
+            'img': d.img.url if d.img else None,
+            'isFalsePositive': d.isFalsePositive
+        } for d in detections]
+        return JsonResponse({'detections': detections_data})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

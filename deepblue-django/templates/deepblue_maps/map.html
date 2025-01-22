@@ -5,7 +5,7 @@
     <title>DeepBlue Map</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'deepblue_maps/map.css' %}">
-    <script async src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=marker&loading=async&callback=initMap"></script>
+    <script async src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=marker,visualization&loading=async&callback=initMap"></script>
     <style>
         
     </style>
@@ -86,9 +86,11 @@
         let pathPolyline = null;
         let detectionMarkers = [];
         let pathInfoWindow = null;
-        let currentDetectionIndex = 0;  // Track current detection being reviewed
-        let detectionsToReview = [];    // Store detection data
+        let currentDetectionIndex = 0;
+        let detectionsToReview = [];
         let activeInfoWindows = [];
+        let allDetectionMarkers = [];
+        let heatmap = null;
 
         function lockControlBox() {
             const controls = document.querySelector('.controls');
@@ -337,6 +339,50 @@
                     }
                 }
             });
+
+            // Add event listener for the dot map checkbox
+            const dotMapCheckbox = document.getElementById('dot-map');
+            dotMapCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    console.log('Dot map checkbox checked');
+                    loadAllDetections();
+                } else {
+                    console.log('Dot map checkbox unchecked');
+                    clearAllDetectionMarkers();
+                }
+            });
+
+            // Initialize the heatmap layer once
+            heatmap = new google.maps.visualization.HeatmapLayer({
+                radius: 20,
+                opacity: 0.7,
+                gradient: [
+                    'rgba(0, 255, 255, 0)',
+                    'rgba(0, 255, 255, 1)',
+                    'rgba(0, 191, 255, 1)',
+                    'rgba(0, 127, 255, 1)',
+                    'rgba(0, 63, 255, 1)',
+                    'rgba(0, 0, 255, 1)',
+                    'rgba(0, 0, 223, 1)',
+                    'rgba(0, 0, 191, 1)',
+                    'rgba(0, 0, 159, 1)',
+                    'rgba(0, 0, 127, 1)',
+                    'rgba(63, 0, 91, 1)',
+                    'rgba(127, 0, 63, 1)',
+                    'rgba(191, 0, 31, 1)',
+                    'rgba(255, 0, 0, 1)'
+                ]
+            });
+
+            // Add event listener for the heat map checkbox
+            const heatMapCheckbox = document.getElementById('heat-map');
+            heatMapCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    loadHeatmap();
+                } else {
+                    heatmap.setMap(null);
+                }
+            });
         }
 
         function parseCoordinates(coordString) {
@@ -572,6 +618,95 @@
                 marker.map = null;
             });
             detectionMarkers = [];
+        }
+
+        function clearAllDetectionMarkers() {
+            allDetectionMarkers.forEach(marker => {
+                marker.map = null;
+            });
+            allDetectionMarkers = [];
+        }
+
+        async function loadAllDetections() {
+            try {
+                const response = await fetch('/api/all-detections/');
+                const data = await response.json();
+                
+                clearAllDetectionMarkers();  // Clear existing markers
+                
+                data.detections.forEach(detection => {
+                    const markerElement = document.createElement('div');
+                    
+                    // Set marker color based on review status
+                    let markerClass = 'marker-unreviewed';
+                    if (detection.isFalsePositive !== null) {
+                        markerClass = detection.isFalsePositive ? 'marker-false' : 'marker-true';
+                    }
+                    
+                    markerElement.innerHTML = `<div class="${markerClass}"></div>`;
+
+                    const marker = new google.maps.marker.AdvancedMarkerElement({
+                        position: { 
+                            lat: detection.location.lat,
+                            lng: detection.location.lng
+                        },
+                        map: map,
+                        content: markerElement
+                    });
+
+                    // Add click listener
+                    marker.addListener('click', () => {
+                        closeAllInfoWindows();
+                        const tooltipWindow = new google.maps.InfoWindow({
+                            content: `
+                                <div style="padding: 10px; max-width: 200px;">
+                                    ${detection.isFalsePositive !== null ? `
+                                        <h4 style="margin: 0 0 10px 0; text-align: center; 
+                                            color: ${detection.isFalsePositive ? '#FF4444' : '#44FF44'}">
+                                            ${detection.isFalsePositive ? 'Rejected' : 'Accepted'} Detection
+                                        </h4>
+                                    ` : ''}
+                                    <img src="${detection.img}" 
+                                         style="width: 100%; height: auto; margin-bottom: 5px;"
+                                         alt="Detection Image">
+                                    <p style="margin: 5px 0;"><strong>Class:</strong> ${detection.likelyClass}</p>
+                                    <p style="margin: 5px 0;"><strong>Confidence:</strong> ${detection.confidences[detection.likelyClass]}</p>
+                                </div>
+                            `
+                        });
+                        tooltipWindow.open(map, marker);
+                        activeInfoWindows.push(tooltipWindow);
+                    });
+
+                    allDetectionMarkers.push(marker);
+                });
+            } catch (error) {
+                console.error('Error loading detections:', error);
+            }
+        }
+
+        async function loadHeatmap() {
+            try {
+                const response = await fetch('/api/all-positive-detections/');
+                const data = await response.json();
+                
+                // Convert detections to heatmap data points
+                const heatmapData = data.detections.map(detection => ({
+                    location: new google.maps.LatLng(
+                        detection.location.lat,
+                        detection.location.lng
+                    ),
+                    weight: detection.isFalsePositive ? 0 : 
+                        detection.confidences[detection.likelyClass]
+                }));
+
+                // Update the existing heatmap layer with new data
+                heatmap.setData(heatmapData);
+                heatmap.setMap(map);
+
+            } catch (error) {
+                console.error('Error loading heatmap:', error);
+            }
         }
 
         // Initialize the map when the page loads
