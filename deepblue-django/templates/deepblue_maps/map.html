@@ -84,8 +84,202 @@
         let isRecording = false;
         let pathPoints = [];
         let pathPolyline = null;
-        let detectionMarkers = [];  // Add array to store detection markers
-        let pathInfoWindow = null;  // Add variable for path info window
+        let detectionMarkers = [];
+        let pathInfoWindow = null;
+        let currentDetectionIndex = 0;  // Track current detection being reviewed
+        let detectionsToReview = [];    // Store detection data
+        let activeInfoWindows = [];
+
+        function lockControlBox() {
+            const controls = document.querySelector('.controls');
+            controls.style.opacity = '0.5';
+            controls.style.pointerEvents = 'none';
+        }
+
+        function unlockControlBox() {
+            const controls = document.querySelector('.controls');
+            controls.style.opacity = '1';
+            controls.style.pointerEvents = 'auto';
+        }
+
+        async function handleFormSubmit() {
+            const type = document.getElementById('modelType').value;
+            const confidence = document.getElementById('confidenceSlider').value / 100;
+            
+            document.getElementById('completionPopup').style.display = 'none';
+            clearDetectionMarkers();
+            
+            try {
+                const response = await fetch('/api/get-fake-detections/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    },
+                    body: JSON.stringify({
+                        path: pathPoints
+                    })
+                });
+                
+                const data = await response.json();
+                console.log('Generated detections:', data);
+                
+                // Fetch all detection details
+                detectionsToReview = await Promise.all(
+                    data.detection_ids.map(id => 
+                        fetch(`/api/detections/${id}/`).then(r => r.json())
+                    )
+                );
+                
+                // Create markers and start review process
+                createDetectionMarkers();
+                lockControlBox();
+                currentDetectionIndex = 0;
+                showNextDetection();
+                
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function createDetectionMarkers() {
+            detectionsToReview.forEach(detection => {
+                const markerElement = document.createElement('div');
+                markerElement.innerHTML = `<div class="marker-unreviewed"></div>`;
+
+                const marker = new google.maps.marker.AdvancedMarkerElement({
+                    position: { 
+                        lat: detection.location.coordinates[1], 
+                        lng: detection.location.coordinates[0]
+                    },
+                    map: map,
+                    content: markerElement
+                });
+
+
+                detectionMarkers.push(marker);
+            });
+        }
+
+        function showNextDetection() {
+            if (currentDetectionIndex >= detectionsToReview.length) {
+                // All detections reviewed
+                unlockControlBox();
+                closeAllInfoWindows();
+                
+                // Fetch all updated detection details
+                Promise.all(
+                    detectionsToReview.map(detection => 
+                        fetch(`/api/detections/${detection.id}/`).then(r => r.json())
+                    )
+                ).then(reviewedDetections => {
+                    // Add click listeners to all markers with updated detection data
+                    detectionMarkers.forEach((marker, index) => {
+                        marker.addListener('click', () => {
+                            closeAllInfoWindows();
+                            const detection = reviewedDetections[index];
+                            console.log('Clicked detection:', detection);
+                            const tooltipWindow = new google.maps.InfoWindow({
+                                content: `
+                                    <div style="padding: 10px; max-width: 200px;">
+                                        <h4 style="margin: 0 0 10px 0; text-align: center; color: ${detection.isFalsePositive ? '#FF4444' : '#44FF44'}">
+                                            ${detection.isFalsePositive ? 'Rejected' : 'Accepted'} Detection
+                                        </h4>
+                                        <img src="/media/${detection.img}" 
+                                             style="width: 100%; height: auto; margin-bottom: 5px;"
+                                             alt="Detection Image">
+                                        <p style="margin: 5px 0;"><strong>Class:</strong> ${detection.likelyClass}</p>
+                                        <p style="margin: 5px 0;"><strong>Confidence:</strong> ${detection.confidences[detection.likelyClass]}</p>
+                                    </div>
+                                `
+                            });
+                            tooltipWindow.open(map, marker);
+                            activeInfoWindows.push(tooltipWindow);
+                        });
+                    });
+                });
+                return;
+            }
+
+            const detection = detectionsToReview[currentDetectionIndex];
+            const marker = detectionMarkers[currentDetectionIndex];
+            const totalDetections = detectionsToReview.length;
+            const currentNumber = currentDetectionIndex + 1;  // Add 1 since index is 0-based
+
+            infoWindow = new google.maps.InfoWindow({
+                content: `
+                    <div style="padding: 15px; min-width: 200px;">
+                        <h4 style="margin: 0 0 10px 0;">Detection ${currentNumber}/${totalDetections}</h4>
+                        <img src="/media/${detection.img}" 
+                             style="width: 100%; height: auto; margin-bottom: 10px;"
+                             alt="Detection Image">
+                        <p><strong>Class:</strong> ${detection.likelyClass}</p>
+                        <p><strong>Confidence:</strong> ${detection.confidences[detection.likelyClass]}</p>
+                        <div style="display: flex; justify-content: space-between; margin-top: 15px;">
+                            <button onclick="handleDetectionReview(${detection.id}, false)" 
+                                    style="background-color: #FF4444; color: white; border: none; 
+                                           padding: 8px 15px; border-radius: 3px; cursor: pointer;">
+                                False
+                            </button>
+                            <button onclick="handleDetectionReview(${detection.id}, true)"
+                                    style="background-color: #44FF44; color: white; border: none;
+                                           padding: 8px 15px; border-radius: 3px; cursor: pointer;">
+                                True
+                            </button>
+                        </div>
+                    </div>
+                `
+            });
+
+            infoWindow.open(map, marker);
+            activeInfoWindows.push(infoWindow);
+            map.panTo(marker.position);
+        }
+        function updateMarkerColor(marker, color) {
+            const svgIcon = {
+              url: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="${color}" stroke="white" stroke-width="2"/></svg>`,
+              scaledSize: new google.maps.Size(30, 30), // Adjust size
+              anchor: new google.maps.Point(15, 15) // Adjust anchor to center the marker
+            };
+
+            marker.setIcon(svgIcon);
+        }
+        async function handleDetectionReview(detectionId, isTrue) {
+            try {
+                await fetch(`/api/detections/${detectionId}/review/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    },
+                    body: JSON.stringify({
+                        isFalsePositive: !isTrue
+                    })
+                });
+
+                // Update marker class based on review
+                const marker = detectionMarkers[currentDetectionIndex];
+                const markerDiv = marker.content.children[0];
+                markerDiv.classList.remove('marker-unreviewed');
+                markerDiv.classList.add(isTrue ? 'marker-true' : 'marker-false');
+                
+                // Move to next detection
+                currentDetectionIndex++;
+                closeAllInfoWindows();
+                showNextDetection();
+
+            } catch (error) {
+                console.error('Error updating detection:', error);
+            }
+        }
+        
+        function closeAllInfoWindows() {
+            // Close all tracked info windows
+            activeInfoWindows.forEach(window => {
+                window.close();
+            });
+            activeInfoWindows = [];
+        }
 
         function initMap() {
             const centerLocation = {lat: 48.544758, lng: -123.012832};
@@ -97,6 +291,7 @@
             map = new google.maps.Map(document.getElementById('map'), {
                 center: centerLocation,
                 zoom: 20,
+                maxZoom: 30,
                 mapTypeId: 'satellite',
                 mapId: 'deepblue_map_id'
             });
@@ -372,83 +567,6 @@
             document.getElementById('sliderValue').textContent = decimalValue;
         }
 
-        function handleFormSubmit() {
-            const type = document.getElementById('modelType').value;
-            const confidence = document.getElementById('confidenceSlider').value / 100;
-            // Close the popup first
-            document.getElementById('completionPopup').style.display = 'none';
-            // Clear any existing detection markers
-            clearDetectionMarkers();
-            
-            console.log('Form submitted:', {
-                type: type,
-                confidence: confidence.toFixed(2)
-            });
-            fetch('/api/get-fake-detections/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                },
-                body: JSON.stringify({
-                    path: pathPoints
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log('Generated detections:', data);
-                // Fetch each detection's details and create markers
-                data.detection_ids.forEach(id => {
-                    // You'll need to create an endpoint to fetch detection details
-                    fetch(`/api/detections/${id}/`)
-                        .then(response => response.json())
-                        .then(detection => {
-                            const markerElement = document.createElement('div');
-                            markerElement.innerHTML = `
-                                <div style="
-                                    width: 15px;
-                                    height: 15px;
-                                    background-color: #FF4444;
-                                    border-radius: 50%;
-                                    border: 2px solid white;
-                                    cursor: pointer;
-                                "></div>
-                            `;
-
-                            const marker = new google.maps.marker.AdvancedMarkerElement({
-                                position: { 
-                                    lat: detection.location.coordinates[1], 
-                                    lng: detection.location.coordinates[0]
-                                },
-                                map: map,
-                                content: markerElement,
-                                title: `Starfish Detection (${detection.confidences.starfish})`
-                            });
-
-                            // Add click listener to show detection details
-                            marker.addListener('click', () => {
-                                const infoWindow = new google.maps.InfoWindow({
-                                    content: `
-                                        <div style="padding: 10px;">
-                                            <h4>Starfish Detection</h4>
-                                            <p>Confidence: ${detection.confidences.starfish}</p>
-                                            <img src="/media/${detection.img}" 
-                                                 style="width: 200px; height: auto;"
-                                                 alt="Detection Image">
-                                        </div>
-                                    `
-                                });
-                                infoWindow.open(map, marker);
-                            });
-
-                            detectionMarkers.push(marker);
-                        });
-                });
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
-        }
         function clearDetectionMarkers() {
             detectionMarkers.forEach(marker => {
                 marker.map = null;

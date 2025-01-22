@@ -91,7 +91,7 @@ def get_fake_detections(request):
                     float(point['lng']) + lng_offset,
                     float(point['lat']) + lat_offset
                 ),
-                likely_class='starfish',
+                likelyClass='starfish',
                 img='detections/starfish1.png',
                 confidences={
                     'starfish': round(random.uniform(0.80, 0.99), 2)
@@ -121,9 +121,21 @@ def get_detection_details(request, detection_id):
                 'type': 'Point',
                 'coordinates': [detection.location.x, detection.location.y]  # [lng, lat]
             },
-            'likely_class': detection.likely_class,
+            'likelyClass': detection.likelyClass,
             'confidences': detection.confidences,
-            'img': detection.img.name if detection.img else None
+            'img': detection.img.name if detection.img else None,
+            'isFalsePositive': detection.isFalsePositive
         })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@require_http_methods(["POST"])
+def update_detection_review(request, detection_id):
+    try:
+        data = json.loads(request.body)
+        detection = get_object_or_404(Detection, id=detection_id)
+        detection.isFalsePositive = data.get('isFalsePositive')
+        detection.save()
+        return JsonResponse({'status': 'success'})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)

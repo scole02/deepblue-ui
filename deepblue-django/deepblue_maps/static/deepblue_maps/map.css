@@ -153,3 +153,30 @@ input[type="text"][readonly] {
 .popup-form button:hover {
     background-color: #3367D6;
 }
+
+.marker-unreviewed {
+    width: 15px;
+    height: 15px;
+    background-color: #808080;  /* Gray color for unreviewed */
+    border-radius: 50%;
+    border: 2px solid white;
+    cursor: pointer;
+}
+
+.marker-true {
+    width: 15px;
+    height: 15px;
+    background-color: #44FF44;  /* Green for true detections */
+    border-radius: 50%;
+    border: 2px solid white;
+    cursor: pointer;
+}
+
+.marker-false {
+    width: 15px;
+    height: 15px;
+    background-color: #FF4444;  /* Red for false positives */
+    border-radius: 50%;
+    border: 2px solid white;
+    cursor: pointer;
+} 
