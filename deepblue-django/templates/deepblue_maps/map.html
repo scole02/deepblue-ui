@@ -512,6 +512,10 @@
                 endPositionInput.style.backgroundColor = '#f8f9fa';
                 
                 if (centerMarker && currentMarker) {
+                    
+                    const startTimeUTCIso = new Date().toISOString();
+                    
+                    // Fetch path points
                     // add 1000ms delay to fetching path points
                     await new Promise(resolve => setTimeout(resolve, 1000));
                     rawPathPoints = await fetchPathPoints(centerMarker.position, currentMarker.position);
@@ -534,8 +538,7 @@
                         map: map
                     });
 
-                    // move center marker to the end of the path
-                    centerMarker.position = pathPoints[pathPoints.length - 1];
+
 
                     // Show completion popup
                     // const completionPopup = new google.maps.InfoWindow({
@@ -558,8 +561,44 @@
 
                     // // Store the popup in a global variable so we can close it later
                     // window.currentCompletionPopup = completionPopup;
+                    
+                    // create transect with last point in pathPoints
+                    try {
+                        const endTimeUTCIso = new Date().toISOString();
+                        const response = await fetch('/api/transects/create/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                            },
+                            body: JSON.stringify({
+                                start_point: centerMarker.position,
+                                end_point: pathPoints[pathPoints.length - 1], // last point in recieved path
+                                time_started: startTimeUTCIso,
+                                time_ended: endTimeUTCIso
+                            })
+                        });
+
+                        const data = await response.json();
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Failed to create transect');
+                        }
+
+                        // Store the transect ID for later use
+                        currentTransectId = data.transect_id;
+                        console.log('Created transect:', currentTransectId);
+
+
+                    } catch (error) {
+                        console.error('Error creating transect:', error);
+                        return;
+                    }
+
+                    // move center marker to the end of the path
+                    centerMarker.position = pathPoints[pathPoints.length - 1];
                 }
-            } else {
+            } 
+            else {
                 button.textContent = 'Start Recording';
                 button.classList.remove('recording-active');
                 button.classList.add('recording-inactive');

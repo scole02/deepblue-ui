@@ -29,7 +29,7 @@ urlpatterns = [
     path('api/detections/<int:detection_id>/review/', views.update_detection_review, name='update_detection_review'),
     path('api/all-detections/', views.get_all_detections, name='get_all_detections'),
     path('api/all-positive-detections/', views.get_all_positive_detections, name='get_all_positive_detections'),
-
+    path('api/transects/create/', views.create_transect, name='create_transect'),
 ]
 
 # Add this to serve media files during development

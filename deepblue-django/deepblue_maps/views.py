@@ -4,7 +4,7 @@ from django.views import View
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib.gis.geos import Point
-from deepblue_maps.models import Detection, ModelParams, Detection
+from deepblue_maps.models import Detection, ModelParams, Detection, Transect
 import json
 import random
 from .utils.fake_data import generate_random_path
@@ -176,5 +176,45 @@ def get_all_positive_detections(request):
             'isFalsePositive': d.isFalsePositive
         } for d in detections]
         return JsonResponse({'detections': detections_data})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@require_http_methods(["POST"])
+def create_transect(request):
+    try:
+        data = json.loads(request.body)
+        start_point_data = data.get('start_point')
+        end_point_data = data.get('end_point')
+        time_started = data.get('time_started')
+        time_ended = data.get('time_ended')
+        
+        if not start_point_data or not end_point_data:
+            return JsonResponse({'error': 'Start and end points are required'}, status=400)
+            
+        # Create Point objects from the coordinates
+        start_point = Point(
+            float(start_point_data['lng']), 
+            float(start_point_data['lat'])
+        )
+        end_point = Point(
+            float(end_point_data['lng']), 
+            float(end_point_data['lat'])
+        )
+        
+        # Create the transect
+        transect = Transect.objects.create(
+            start_point=start_point,
+            end_point=end_point,
+            time_started=time_started,
+            time_ended=time_ended
+        )
+        
+        return JsonResponse({
+            'status': 'success',
+            'transect_id': transect.id,
+        })
+        
+    except (json.JSONDecodeError, ValueError) as e:
+        return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
