@@ -1,14 +1,23 @@
 .env
 .cursorrules
+.vscode
 db.sqlite3
+.DS_Store
+deepblue-django/db.sqlite3
+deepblue-django/db.sqlite3-journal
 db.sqlite3-journal
 # Ignore Django migrations
 */migrations/*.py
 !*/migrations/__init__.py
 *.pyc
 deepblue-django/deepblue/__pycache__/*
-
+deepblue-django/.DS_Store
+deepblue-django/static/.DS_Store
+deepblue-django/media/.DS_Store
 deepblue-django/deepblue/__pycache__/settings.cpython-310.pyc
 deepblue-django/deepblue_maps/__pycache__/admin.cpython-310.pyc
 deepblue-django/deepblue_maps/migrations/*.py
 deepblue-django/deepblue_maps/migrations/__pycache__/*
+deepblue-django/deepblue_maps/__pycache__/*
+deepblue-django/deepblue_maps/ckpts/*.pt
+secret.txt

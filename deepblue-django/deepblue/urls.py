@@ -30,6 +30,9 @@ urlpatterns = [
     path('api/all-detections/', views.get_all_detections, name='get_all_detections'),
     path('api/all-positive-detections/', views.get_all_positive_detections, name='get_all_positive_detections'),
     path('api/transects/create/', views.create_transect, name='create_transect'),
+    path('api/run-detection/', views.run_detection, name='run_detection'),
+    path('api/start-recording/', views.start_recording, name='start_recording'),
+    path('api/stop-recording/', views.stop_recording, name='stop_recording'),
 ]
 
 # Add this to serve media files during development

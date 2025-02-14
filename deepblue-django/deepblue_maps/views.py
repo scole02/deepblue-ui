@@ -4,10 +4,12 @@ from django.views import View
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib.gis.geos import Point
-from deepblue_maps.models import Detection, ModelParams, Detection, Transect
+from deepblue_maps.models import *
 import json
 import random
 from .utils.fake_data import generate_random_path
+from .video_capture import VideoHandler
+from .detection import DetectionHandler
 
 class MapView(View):
     template_name = 'deepblue_maps/map.html'
@@ -202,13 +204,14 @@ def create_transect(request):
         )
         
         # Create the transect
+        print(Transect.objects.create)
         transect = Transect.objects.create(
             start_point=start_point,
             end_point=end_point,
             time_started=time_started,
-            time_ended=time_ended
+            time_ended=time_ended,
         )
-        
+
         return JsonResponse({
             'status': 'success',
             'transect_id': transect.id,
@@ -218,3 +221,83 @@ def create_transect(request):
         return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# Initialize video handler
+video_handler = VideoHandler("4777")
+
+@require_http_methods(["POST"])
+def start_recording(request):
+    """Start video recording."""
+    try:
+        # Start recording
+        
+        data = json.loads(request.body)
+        start_time = data.get('start_time') # startTimeUTCIso
+        # str the time_started
+        start_time_str = str(start_time)
+        
+        video_handler.start_recording(f"videos/{start_time_str}_video.mp4")
+        # Create a new video recording entry in the database
+        video_recording = VideoRecording.objects.create(
+            video_path=f'videos/{start_time_str}_video.mp4',
+            # video_file=None,  # We'll set this later when we save the file
+            recorded_at=start_time
+        )
+        # print(video_recording.id, "--start recording")
+
+        # Store recording ID and path for later use
+        return JsonResponse({
+            'status': 'Recording started',
+            'recording_id': video_recording.id
+        })
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@require_http_methods(["POST"])
+def stop_recording(request):
+    """Stop video recording."""
+    try:
+        # Stop recording
+        data = json.loads(request.body)
+        end_time = data.get('end_time')
+        
+        recording_id = data.get('recording_id')
+        # print(recording_id, "--stop recording")
+        # Here we save the video file to the database
+        video_recording = VideoRecording.objects.get(id=recording_id)
+        video_file_path = video_handler.video_file_path
+        video_handler.stop_recording()
+        video_recording.end_time = end_time
+        # video_recording.save()
+
+        return JsonResponse({'status': 'Recording stopped', 'video_file': video_file_path})
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+    
+    
+@require_http_methods(["POST"])
+def run_detection(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Invalid request method"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        video_id = data.get("video_id")
+        confidence_threshold = float(data.get("confidence_threshold", 0.5)) 
+
+        if not video_id:
+            return JsonResponse({"error": "No video path provided"}, status=400)
+        video_recording = VideoRecording.objects.get(id=video_id)
+        video_path = video_recording.video_path
+
+        detection_handler = DetectionHandler()
+        
+        result = detection_handler.run_detection(video_path, confidence_threshold)
+
+        return JsonResponse(result, status=200 if result["status"] == "success" else 500)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

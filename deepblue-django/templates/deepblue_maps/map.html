@@ -91,6 +91,7 @@
         let activeInfoWindows = [];
         let allDetectionMarkers = [];
         let heatmap = null;
+        let recording_id = null;
 
         function lockControlBox() {
             const controls = document.querySelector('.controls');
@@ -112,37 +113,67 @@
             clearDetectionMarkers();
             
             try {
-                const response = await fetch('/api/get-fake-detections/', {
+                const response = await fetch('/api/run-detection/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
                     },
                     body: JSON.stringify({
-                        path: pathPoints
-                    })
+                        video_id : recording_id, 
+                        confidence_threshold: confidence 
+                    }),
+
                 });
-                
                 const data = await response.json();
-                console.log('Generated detections:', data);
-                
-                // Fetch all detection details
-                detectionsToReview = await Promise.all(
-                    data.detection_ids.map(id => 
-                        fetch(`/api/detections/${id}/`).then(r => r.json())
-                    )
-                );
-                
-                // Create markers and start review process
-                createDetectionMarkers();
-                lockControlBox();
-                currentDetectionIndex = 0;
-                showNextDetection();
-                
-            } catch (error) {
+                console.log('Detections:', data);
+
+                if (data.status === 'success') {
+                    detectionsToReview = data.detections;
+                    createDetectionMarkers();
+                    lockControlBox();
+                    currentDetectionIndex = 0;
+                    showNextDetection();
+                } else {
+                    console.error('Detection failed:', data.message);
+                }
+            }
+            catch (error) {
                 console.error('Error:', error);
             }
         }
+            // try {
+            //     const response = await fetch('/api/get-fake-detections/', {
+            //         method: 'POST',
+            //         headers: {
+            //             'Content-Type': 'application/json',
+            //             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            //         },
+            //         body: JSON.stringify({
+            //             path: pathPoints
+            //         })
+            //     });
+                
+            //     const data = await response.json();
+            //     console.log('Generated detections:', data);
+                
+            //     // Fetch all detection details
+            //     detectionsToReview = await Promise.all(
+            //         data.detection_ids.map(id => 
+            //             fetch(`/api/detections/${id}/`).then(r => r.json())
+            //         )
+            //     );
+                
+            //     // Create markers and start review process
+            //     createDetectionMarkers();
+            //     lockControlBox();
+            //     currentDetectionIndex = 0;
+            //     showNextDetection();
+                
+            // } catch (error) {
+            //     console.error('Error:', error);
+            // }
+            
 
         function createDetectionMarkers() {
             detectionsToReview.forEach(detection => {
@@ -504,6 +535,7 @@
             
             isRecording = !isRecording;
             
+            
             if (isRecording) {
                 button.textContent = 'Stop';
                 button.classList.remove('recording-inactive');
@@ -588,12 +620,35 @@
                         currentTransectId = data.transect_id;
                         console.log('Created transect:', currentTransectId);
 
-
+        
                     } catch (error) {
                         console.error('Error creating transect:', error);
                         return;
                     }
 
+                    // Start recording
+                    try {
+                        const response = await fetch('/api/start-recording/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                            },
+                            body: JSON.stringify({
+                                start_point: centerMarker.position,
+                                start_time: startTimeUTCIso
+                            })
+                        });
+
+                        const data = await response.json();
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Failed to start recording');
+                        }
+                        recording_id = data.recording_id;
+                        console.log('Started recording:', data);
+                    } catch (error) {
+                        console.error('Error starting recording:', error);
+                    }
                     // move center marker to the end of the path
                     centerMarker.position = pathPoints[pathPoints.length - 1];
                 }
@@ -605,14 +660,40 @@
                 endPositionInput.readOnly = false;
                 endPositionInput.style.backgroundColor = '';
 
-                
-                    // move center marker to the end of the path
-                    centerMarker.position = pathPoints[pathPoints.length - 1];
-                    // Add info window to the middle of the path
-                    const midPointIndex = Math.floor(pathPoints.length / 2);
-                    const midPoint = pathPoints[midPointIndex];
-                    // Show the custom popup form
-                    document.getElementById('completionPopup').style.display = 'flex';
+                // await fetch('/api/stop-recording/', { method: 'POST' });
+                //     // move center marker to the end of the path
+                //     centerMarker.position = pathPoints[pathPoints.length - 1];
+                //     // Add info window to the middle of the path
+                //     const midPointIndex = Math.floor(pathPoints.length / 2);
+                //     const midPoint = pathPoints[midPointIndex];
+                //     // Show the custom popup form
+                //     document.getElementById('completionPopup').style.display = 'flex';
+
+                // stop recording
+                try {
+                    const endTimeUTCIso = new Date().toISOString();
+                    const response = await fetch('/api/stop-recording/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        },
+                        body: JSON.stringify({
+                            end_time: endTimeUTCIso,
+                            recording_id: recording_id
+                        })
+                    });
+
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to stop recording');
+                    }
+
+                    console.log('Stopped recording:', data);
+                } catch (error) {
+                    console.error('Error stopping recording:', error);
+                }
+
 
                 pathInfoWindow = new google.maps.InfoWindow({
                         content: `
@@ -628,7 +709,7 @@
                                 </button>
                             </div>
                         `,
-                        position: midPoint
+                        // position: midPoint
                 });
                 
                 pathInfoWindow.open(map);
