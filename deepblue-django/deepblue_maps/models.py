@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.gis.db import models as gis_models
+from django.utils import timezone
 
 class ModelParams(models.Model):
     filepath = models.FileField(max_length=255, upload_to='models/')
@@ -30,3 +31,28 @@ class Detection(models.Model):
     def __str__(self):
         
         return f"Detection: {self.likelyClass} at {self.time}"
+    
+
+
+class VideoRecording(models.Model):
+    # video_file = models.FileField(upload_to='videos/')
+    video_path = models.CharField(max_length=255,null=True)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+    end_time = models.DateTimeField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"VideoRecording {self.id} - {self.recorded_at}"
+    
+    
+
+class DetectionResult(models.Model):
+    video_path = models.CharField(max_length=500, help_text="video file path")
+    results_file = models.CharField(max_length=500, help_text="detection results - json file path")
+    result_img_dir = models.CharField(max_length=500, help_text="directory containing result images")
+    detections = models.JSONField(default=list, help_text="list of detections")
+    confidence_threshold = models.FloatField(default=0.5, help_text="confidence threshold")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"DetectionResult {self.id} - {self.result_img_dir}"
+

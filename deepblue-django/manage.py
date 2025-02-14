@@ -5,6 +5,8 @@ import sys
 
 
 def main():
+    # set export GOOGLE_MAPS_API_KEY=AIzaSyDdULiINZ9XPR3hnDkQoOu-djYxWe3H7_Q
+    os.environ.setdefault('GOOGLE_MAPS_API_KEY', 'AIzaSyDdULiINZ9XPR3hnDkQoOu-djYxWe3H7_Q')
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'deepblue.settings')
     try:
