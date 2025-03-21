@@ -224,7 +224,7 @@ def create_transect(request):
 
 
 # Initialize video handler
-video_handler = VideoHandler("4777")
+video_handler = VideoHandler("5600")
 
 @require_http_methods(["POST"])
 def start_recording(request):

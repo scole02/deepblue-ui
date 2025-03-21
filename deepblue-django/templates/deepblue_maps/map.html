@@ -542,11 +542,33 @@
                 button.classList.add('recording-active');
                 endPositionInput.readOnly = true;
                 endPositionInput.style.backgroundColor = '#f8f9fa';
-                
+                     // Start recording
                 if (centerMarker && currentMarker) {
                     
                     const startTimeUTCIso = new Date().toISOString();
                     
+                    try {
+                        const response = await fetch('/api/start-recording/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                            },
+                            body: JSON.stringify({
+                                start_point: centerMarker.position,
+                                start_time: startTimeUTCIso
+                            })
+                        });
+
+                        const data = await response.json();
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Failed to start recording');
+                        }
+                        recording_id = data.recording_id;
+                        console.log('Started recording:', data);
+                    } catch (error) {
+                        console.error('Error starting recording:', error);
+                    }               
                     // Fetch path points
                     // add 1000ms delay to fetching path points
                     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -626,29 +648,7 @@
                         return;
                     }
 
-                    // Start recording
-                    try {
-                        const response = await fetch('/api/start-recording/', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                            },
-                            body: JSON.stringify({
-                                start_point: centerMarker.position,
-                                start_time: startTimeUTCIso
-                            })
-                        });
 
-                        const data = await response.json();
-                        if (!response.ok) {
-                            throw new Error(data.error || 'Failed to start recording');
-                        }
-                        recording_id = data.recording_id;
-                        console.log('Started recording:', data);
-                    } catch (error) {
-                        console.error('Error starting recording:', error);
-                    }
                     // move center marker to the end of the path
                     centerMarker.position = pathPoints[pathPoints.length - 1];
                 }

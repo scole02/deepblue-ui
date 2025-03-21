@@ -7,7 +7,7 @@ from django.conf import settings
 
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst
-
+import traceback
 
 
 
@@ -18,7 +18,7 @@ class VideoHandler():
         Gst.init(None)
         self.port = port
         self.latest_frame = self._new_frame = None
-        self.video_source = 'udpsrc port={}'.format(self.port)
+        self.video_source = 'udpsrc address=192.168.2.1 port={}'.format(self.port)
         self.video_codec = '! application/x-rtp, payload=96 ! rtph264depay ! h264parse ! avdec_h264'
         self.video_decode = '! decodebin ! videoconvert ! video/x-raw,format=(string)BGR ! videoconvert'
         self.video_sink_conf = '! appsink emit-signals=true sync=false max-buffers=2 drop=true'
@@ -26,6 +26,8 @@ class VideoHandler():
         self.video_sink = None
         self.video_file_path = None
         self.recording = False
+        print("Starting Gstreamer")
+        #print(traceback.print_stack())
         self.run()
 
     def start_gst(self, config=None):
@@ -38,6 +40,7 @@ class VideoHandler():
             ]
 
         command = ' '.join(config)
+        print(command)
         self.video_pipe = Gst.parse_launch(command)
         self.video_pipe.set_state(Gst.State.PLAYING)
         self.video_sink = self.video_pipe.get_by_name('appsink0')
@@ -94,9 +97,10 @@ class VideoHandler():
         # Wait for first frame to get dimensions
         while not self.frame_available():
             cv2.waitKey(30)
-        
+
         # use media root to save the video
         video_path = os.path.join(settings.MEDIA_ROOT, video_path)
+        print("video path: ", video_path)
         frame = self.frame()
         height, width = frame.shape[:2]
         
@@ -140,10 +144,15 @@ class VideoHandler():
     
     
 if __name__ == '__main__':
+    settings.configure(DEBUG=True)
     video_handler = VideoHandler("4777")
+    print("start recording")
     video_handler.start_recording('video.mp4')
-    cv2.waitKey(10000)  # Record for 10 seconds
+    print("recording started")
+    cv2.waitKey(10000)  # Record for 1 seconds
+    print("stopping recording")
     video_handler.stop_recording()
     print("Recording saved to video.mp4")
     cv2.destroyAllWindows()
     # os.system(f'ffplay -autoexit {video_handler.video_file_path}')
+

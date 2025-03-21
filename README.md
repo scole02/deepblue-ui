@@ -10,6 +10,9 @@ python -m pip install -r requirements.txt
 sudo apt-get install -y libgdal-dev gdal-bin python3-gdal
 sudo apt-get install -y libsqlite3-mod-spatialite
 
+# For Gstreamer / PyGObject
+sudo apt-get install gstreamer-1.0
+
 # Make migrations for database (Optional)
 python manage.py makemigrations
 python manage.py migrate
